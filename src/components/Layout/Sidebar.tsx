@@ -40,7 +40,7 @@ export function Sidebar() {
             <div className="w-8 h-8 rounded-lg bg-[#06f8d8] flex items-center justify-center">
               <Rocket className="w-4 h-4" />
             </div>
-            <span className="font-semibold text-white">DeployHub</span>
+            <span className="font-semibold text-white">Plutoploy</span>
           </Link>
         )}
         <Button
