@@ -5,6 +5,8 @@ import { FolderGit2, Rocket, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Link } from 'react-router-dom';
 import { StatCard } from '../components/ui/StatCard';
+import { useEffect } from 'react';
+
 
 const stats = [
   { title: 'Total Projects', value: 12, icon: FolderGit2, trend: { value: 8, isPositive: true } },
@@ -60,6 +62,7 @@ const recentDeployments = [
     timestamp: '2 hours ago',
   },
 ];
+
 
 export default function DashboardPage() {
   return (

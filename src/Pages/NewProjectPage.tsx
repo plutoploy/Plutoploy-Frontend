@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '../components/Layout/DashboardLayout';
 import { Header } from '../components/Layout/Header';
 import { Button } from '../components/ui/button';
@@ -13,30 +13,63 @@ import {
 } from '../components/ui/select';
 import { GitBranch, ArrowLeft, Rocket, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
-
-const mockRepos = [
-  { id: '1', name: 'acme/my-nextjs-app', description: 'Next.js application' },
-  { id: '2', name: 'acme/api-backend', description: 'Express API backend' },
-  { id: '3', name: 'acme/dashboard-ui', description: 'React dashboard' },
-  { id: '4', name: 'acme/mobile-api', description: 'Mobile app backend' },
-  { id: '5', name: 'acme/marketing-site', description: 'Marketing website' },
-];
+import api from '../lib/api';
 
 export default function NewProjectPage() {
   const navigate = useNavigate();
   const [step, setStep] = useState(1);
   const [selectedRepo, setSelectedRepo] = useState<string | null>(null);
-  const [projectType, setProjectType] = useState('frontend');
+  const [projectType, setProjectType] = useState('react');
   const [buildCommand, setBuildCommand] = useState('npm run build');
-  const [outputDir, setOutputDir] = useState('dist');
   const [isCreating, setIsCreating] = useState(false);
+  
+  const [repos, setRepos] = useState<any[]>([]);
+  const [isLoadingRepos, setIsLoadingRepos] = useState(true);
+
+  useEffect(() => {
+    const fetchRepos = async () => {
+      try {
+        const data = await api.getRepos.list();
+        setRepos(data || []);
+      } catch (err) {
+        console.error('Failed to fetch repos', err);
+      } finally {
+        setIsLoadingRepos(false);
+      }
+    };
+    fetchRepos();
+  }, []);
 
   const handleCreate = async () => {
     setIsCreating(true);
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    navigate('/projects/1');
+    try {
+      const repo = repos.find(r => r.id === selectedRepo);
+      if (!repo) return;
+      
+      // Map project types to the supported runtimes (node or python)
+      const runtime = projectType === 'python' ? 'python' : 'node';
+      
+      const res = await api.deploy.injectWorkflow({
+        repoFullName: repo.full_name,
+        runtime: runtime,
+        branch: repo.branch || 'main',
+      });
+      
+      if (res && res.buildId) {
+        // Navigate to the deployment/build details page
+        navigate(`/deployments/${res.buildId}`);
+      } else {
+        navigate('/projects');
+      }
+    } catch (err) {
+      console.error('Deployment failed:', err);
+      alert('Failed to deploy. Check console for details.');
+    } finally {
+      setIsCreating(false);
+    }
   };
+
+  const selectedRepoData = repos.find(r => r.id === selectedRepo);
 
   return (
     <DashboardLayout>
@@ -68,30 +101,38 @@ export default function NewProjectPage() {
 
         {/* Step 1: Select Repository */}
         {step === 1 && (
-          <div className="bg-[#090b30]/80 backdrop-blur-xl border border-white/10 rounded-lg   p-6 space-y-4">
+          <div className="bg-[#090b30]/80 backdrop-blur-xl border border-white/10 rounded-lg p-6 space-y-4">
             <h2 className="text-lg font-semibold text-white mb-4">Select a GitHub Repository</h2>
-            <div className="space-y-3">
-              {mockRepos.map((repo) => (
-                <button
-                  key={repo.id}
-                  onClick={() => setSelectedRepo(repo.id)}
-                  className={`
-                    w-full p-4 rounded-lg border text-left transition-all
-                    ${selectedRepo === repo.id 
-                      ? 'border-[#06f8d8] bg-[#06f8d8]/5' 
-                      : 'border-white/10 hover:border-[#06f8d8]/50 hover:bg-[#090b30]/50'}
-                  `}
-                >
-                  <div className="flex items-center gap-3">
-                    <GitBranch className="w-5 h-5 text-white/60" />
-                    <div>
-                      <p className="font-medium text-white">{repo.name}</p>
-                      <p className="text-sm text-white/60">{repo.description}</p>
+            {isLoadingRepos ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-[#06f8d8]" />
+              </div>
+            ) : repos.length === 0 ? (
+              <p className="text-white/60 text-center py-8">No repositories found. Ensure you have installed the GitHub app.</p>
+            ) : (
+              <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
+                {repos.map((repo) => (
+                  <button
+                    key={repo.id}
+                    onClick={() => setSelectedRepo(repo.id)}
+                    className={`
+                      w-full p-4 rounded-lg border text-left transition-all
+                      ${selectedRepo === repo.id 
+                        ? 'border-[#06f8d8] bg-[#06f8d8]/5' 
+                        : 'border-white/10 hover:border-[#06f8d8]/50 hover:bg-[#090b30]/50'}
+                    `}
+                  >
+                    <div className="flex items-center gap-3">
+                      <GitBranch className="w-5 h-5 text-white/60" />
+                      <div>
+                        <p className="font-medium text-white">{repo.full_name}</p>
+                        {repo.description && <p className="text-sm text-white/60 line-clamp-1">{repo.description}</p>}
+                      </div>
                     </div>
-                  </div>
-                </button>
-              ))}
-            </div>
+                  </button>
+                ))}
+              </div>
+            )}
             <Button 
               className="w-full mt-4 p-5 bg-[#06f8d8] text-background hover:bg-[#06f8d8]/80 font-medium cursor-pointer" 
               disabled={!selectedRepo}
@@ -104,7 +145,7 @@ export default function NewProjectPage() {
 
         {/* Step 2: Configure Project */}
         {step === 2 && (
-          <div className="bg-[#090b30]/80 backdrop-blur-xl border border-white/10 rounded-lg   p-6 space-y-6">
+          <div className="bg-[#090b30]/80 backdrop-blur-xl border border-white/10 rounded-lg p-6 space-y-6">
             <h2 className="text-lg font-semibold text-white">Configure Your Project</h2>
             
             <div className="space-y-4">
@@ -115,28 +156,20 @@ export default function NewProjectPage() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="frontend">Frontend (React / Next.js)</SelectItem>
-                    <SelectItem value="backend">Backend (Node / Express)</SelectItem>
+                    <SelectItem value="react">React</SelectItem>
+                    <SelectItem value="node">Node.js</SelectItem>
+                    <SelectItem value="express">Express</SelectItem>
+                    <SelectItem value="python">Python</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
               <div className="space-y-2">
-                <Label>Build Command</Label>
+                <Label>Command</Label>
                 <Input
                   value={buildCommand}
                   onChange={(e) => setBuildCommand(e.target.value)}
-                  placeholder="npm run build"
-                  className="font-mono bg-[#111457] border-white/10 text-white"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Output Directory</Label>
-                <Input
-                  value={outputDir}
-                  onChange={(e) => setOutputDir(e.target.value)}
-                  placeholder="dist"
+                  placeholder={projectType === 'python' ? 'python main.py' : 'npm run build'}
                   className="font-mono bg-[#111457] border-white/10 text-white"
                 />
               </div>
@@ -163,26 +196,26 @@ export default function NewProjectPage() {
             <div className="space-y-4 p-4 bg-secondary/30 rounded-lg">
               <div className="flex justify-between">
                 <span className="text-white/60">Repository</span>
-                <span className="font-mono text-white">acme/my-nextjs-app</span>
+                <span className="font-mono text-white">{selectedRepoData?.full_name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/60">Branch</span>
+                <span className="font-mono text-white">{selectedRepoData?.branch || 'main'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-white/60">Type</span>
                 <span className="text-white capitalize">{projectType}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-white/60">Build Command</span>
+                <span className="text-white/60">Command</span>
                 <span className="font-mono text-white">{buildCommand}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white/60">Output Directory</span>
-                <span className="font-mono text-white">{outputDir}</span>
               </div>
             </div>
 
             <div className="flex gap-3">
               <Button variant="outline"
               onClick={() => setStep(2)} disabled={isCreating}
-              className="border-white/10 text-white hover:border-[#06f8d8]/50 hover:bg-[#06f8d8] hover:text-black p-5 mt-4">              Back
+              className="border-white/10 text-white hover:border-[#06f8d8]/50 hover:bg-[#06f8d8] hover:text-black p-5 mt-4">Back
               </Button>
 
               <Button className="flex-1 w-full mt-4 p-5 bg-[#06f8d8] text-background hover:bg-[#06f8d8]/80 font-medium cursor-pointer" 
@@ -190,7 +223,7 @@ export default function NewProjectPage() {
                 {isCreating ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Creating Project...
+                    Injecting Workflow...
                   </>
                 ) : (
                   <>

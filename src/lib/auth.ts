@@ -1,82 +1,92 @@
-// GitHub OAuth configuration
-const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID;
-const REDIRECT_URI = import.meta.env.VITE_AUTH_REDIRECT_URI;
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
 
 export const initiateGitHubLogin = () => {
-  const githubAuthUrl = new URL('https://github.com/login/oauth/authorize');
-  
-  // Generate a random state for CSRF protection
-  const state = Math.random().toString(36).substring(7);
-  sessionStorage.setItem('github_oauth_state', state);
-  
-  githubAuthUrl.searchParams.append('client_id', GITHUB_CLIENT_ID);
-  githubAuthUrl.searchParams.append('redirect_uri', REDIRECT_URI);
-  githubAuthUrl.searchParams.append('scope', 'read:user user:email');
-  githubAuthUrl.searchParams.append('state', state);
-  
-  // Redirect to GitHub OAuth
-  window.location.href = githubAuthUrl.toString();
+  // Redirect to your backend's GitHub OAuth endpoint
+  window.location.href = `${API_URL}/auth/github`;
 };
 
-export const handleGitHubCallback = async (code: string, state: string | null) => {
-  // Verify state to prevent CSRF attacks
-  const savedState = sessionStorage.getItem('github_oauth_state');
-  if (state && savedState && state !== savedState) {
-    throw new Error('Invalid state parameter');
+export const handleGitHubCallback = async () => {
+  // Backend redirects here with ?session_token=<token>
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = urlParams.get('session_token');
+
+  if (token) {
+    localStorage.setItem('auth_token', token);
+    // Clean token from URL bar without triggering a reload
+    window.history.replaceState({}, '', window.location.pathname);
   }
-  
-  sessionStorage.removeItem('github_oauth_state');
-  
-  // For development: Mock authentication without backend
-  // TODO: Replace this with actual backend API call in production
-  const isDevelopment = !import.meta.env.VITE_API_URL || import.meta.env.VITE_API_URL === 'http://localhost:3000/api';
-  
-  if (isDevelopment) {
-    // Mock user data for development
-    const mockUser = {
-      id: '12345',
-      username: 'developer',
-      email: 'dev@example.com',
-      avatar: 'https://github.com/identicons/developer.png',
-    };
-    
-    const mockToken = 'mock_jwt_token_' + Date.now();
-    
-    localStorage.setItem('auth_token', mockToken);
-    localStorage.setItem('user', JSON.stringify(mockUser));
-    
-    return { token: mockToken, user: mockUser };
+
+  // Fetch current user data from your backend
+  try {
+    const user = await getCurrentUser();
+    localStorage.setItem('user', JSON.stringify(user));
+    return { token: token || 'cookie-based', user };
+  } catch (error) {
+    throw new Error('Failed to authenticate with GitHub');
   }
+};
+
+export const getCurrentUser = async () => {
+  const token = localStorage.getItem('auth_token');
   
-  // Production: Exchange code for access token via your backend
-  const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/github/callback`, {
-    method: 'POST',
+  const response = await fetch(`${API_URL}/auth/me`, {
     headers: {
+      ...(token && { 'Authorization': `Bearer ${token}` }),
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ code }),
+    credentials: 'include', // Include cookies for session-based auth
   });
   
   if (!response.ok) {
-    throw new Error('Failed to authenticate with GitHub');
+    throw new Error('Failed to fetch user data');
   }
   
   const data = await response.json();
-  
-  // Store the access token
-  localStorage.setItem('auth_token', data.token);
-  localStorage.setItem('user', JSON.stringify(data.user));
-  
-  return data;
+  return data.user;
 };
 
-export const logout = () => {
+export const logout = async () => {
+  const token = localStorage.getItem('auth_token');
+  
+  try {
+    await fetch(`${API_URL}/auth/logout`, {
+      method: 'POST',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+  } catch (error) {
+    console.error('Logout error:', error);
+  }
+  
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('user');
+};
+
+export const logoutAll = async () => {
+  const token = localStorage.getItem('auth_token');
+  
+  try {
+    await fetch(`${API_URL}/auth/logout/all`, {
+      method: 'POST',
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+        'Content-Type': 'application/json',
+      },
+      credentials: 'include',
+    });
+  } catch (error) {
+    console.error('Logout all error:', error);
+  }
+  
   localStorage.removeItem('auth_token');
   localStorage.removeItem('user');
 };
 
 export const isAuthenticated = () => {
-  return !!localStorage.getItem('auth_token');
+  return !!localStorage.getItem('auth_token') || !!localStorage.getItem('user');
 };
 
 export const getUser = () => {

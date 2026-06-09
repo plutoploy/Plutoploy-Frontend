@@ -1,4 +1,4 @@
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   FolderGit2, 
@@ -12,6 +12,7 @@ import {
 import { cn } from '../../lib/utils';
 import { useState } from 'react';
 import { Button } from '../ui/button';
+import { logout } from '../../lib/auth';
 
 
 const navItems = [
@@ -24,7 +25,13 @@ const navItems = [
 
 export function Sidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
+
+  const handleSignout = async () => {
+    await logout();
+    navigate('/');
+  };
 
   return (
     <aside 
@@ -77,7 +84,10 @@ export function Sidebar() {
 
       {/* User section */}
       <div className="p-3 border-t border-[#2e303a]">
-        <button className="nav-item w-full justify-start text-white/60 hover:bg-blue-950 hover:text-white rounded-lg flex items-center gap-3 px-3 py-2">
+        <button 
+          onClick={handleSignout}
+          className="nav-item w-full justify-start text-white/60 hover:bg-blue-950 hover:text-white rounded-lg flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors"
+        >
           <LogOut className="w-5 h-5 shrink-0" />
           {!collapsed && <span>Sign Out</span>}
         </button>

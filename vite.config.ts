@@ -3,12 +3,18 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(),],
+  plugins: [react(), tailwindcss()],
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src")
     }
+  },
+
+  server: {
+    host: true,            // allow external access (ngrok)
+    port: 5173,            // your dev port
+    allowedHosts: true    // allow ngrok domains
   }
 })

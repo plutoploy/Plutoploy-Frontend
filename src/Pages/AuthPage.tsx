@@ -1,9 +1,18 @@
-import {  Rocket, Zap, Shield, Globe, GitBranch } from 'lucide-react';
+import { useState } from 'react';
+import { Rocket, Zap, Shield, Globe, Loader2 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { FaGithub } from 'react-icons/fa';
+import { initiateGitHubLogin } from '../lib/auth';
 // import { Link } from 'react-router-dom';
 
 export default function AuthPage() {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleGitHubLogin = () => {
+    setIsLoading(true);
+    initiateGitHubLogin();
+  };
+
   return (
     <div className="min-h-screen bg-background flex">
       {/* Left Panel - Hero */}
@@ -72,9 +81,15 @@ export default function AuthPage() {
           <div className="space-y-4">
             {/* <Link to="/dashboard"> */}
               <Button 
+                onClick={handleGitHubLogin}
+                disabled={isLoading}
                 className="w-full h-12 bg-white text-background hover:bg-white/70 font-medium cursor-pointer"
               >
-                <FaGithub className="w-5 h-5 mr-2" />
+                {isLoading ? (
+                  <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                ) : (
+                  <FaGithub className="w-5 h-5 mr-2" />
+                )}
                 Continue with GitHub
               </Button>
             {/* </Link> */}
